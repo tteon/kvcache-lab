@@ -11,12 +11,12 @@ This document is designed to help **Antigravity** (and other AI agents) quickly 
 
 | File/Dir | Role | Agent Action |
 |---|---|---|
-| `run_experiments.sh` | **Entry Point** | EXECUTE this to run benchmarks. Configures Docker containers and workload. |
-| `scripts/utils.sh` | **Logic Core** | READ/EDIT this to modify container startup flags, environment variables, or monitoring logic. |
-| `benchmark.py` | **Load Generator** | READ/EDIT this to change request patterns (e.g., Poisson arrival), metrics calculation, or logging format. |
-| `configs/*.yaml` | **Backend Config** | EDIT this to tune LMCache parameters (chunk size, backend type). |
-| `plot_results.py` | **Analysis** | EXECUTE this to generate visualizations and summary reports from `results/`. |
-| `results/` | **Output** | READ this to analyze experiment outcomes. Organized by `label_timestamp`. |
+| `Makefile` | **Command Interface** | EXECUTE `make baseline`, `make analyze`, etc. for quick operations. |
+| `run_experiments.sh` | **Entry Point** | EXECUTE this directly for custom flags not covered by Makefile. |
+| `benchmark.py` | **Load Generator** | READ/EDIT this to change request patterns (NVTX, metrics). |
+| `analysis/plot_results.py` | **Analysis** | EXECUTE this to generate visualizations from `results/`. |
+| `configs/*.yaml` | **Backend Config** | EDIT this to tune LMCache parameters. |
+| `results/` | **Output** | READ this to analyze outcomes. |
 
 ## 🕹️ Operational Workflows
 

@@ -17,15 +17,17 @@ This repository contains a reproducible experiment lab designed to benchmark and
 
 ```
 .
+├── Makefile                # Unified command interface (make baseline, make analyze)
 ├── benchmark.py            # Async OpenAI-compatible benchmark client
-├── run_experiments.sh      # Orchestration script (Docker + Monitoring)
-├── plot_results.py         # Analysis and plotting tool
-├── configs/                # LMCache configurations
-│   ├── cpu_offload.yaml    # CPU RAM offloading config
-│   ├── disk_offload.yaml   # Local Disk offloading config
-│   └── redis_offload.yaml  # Redis (Scalability) config
-├── requirements.txt        # Python dependencies for client
-└── README.md               # This file
+├── run_experiments.sh      # Orchestration script (Main entry point)
+├── analysis/               # Analysis tools
+│   ├── plot_results.py     # Plotting script
+│   └── bottleneck_calculator.py # Theoretical calculator
+├── scripts/                # Helper scripts
+│   └── utils.sh            # Common functions
+├── configs/                # LMCache configurations (yaml)
+├── requirements.txt        # Python dependencies
+└── README.md               # Documentation
 ```
 
 ## 🛠️ Prerequisites
@@ -48,19 +50,20 @@ This repository contains a reproducible experiment lab designed to benchmark and
     ```
 
 3.  **Run Experiments**:
-    Use the `run_experiments.sh` script to launch the vLLM server and run benchmarks.
+    You can use the `Makefile` shortcuts or `run_experiments.sh` directly.
 
     *   **Baseline (GPU only)**:
         ```bash
-        ./run_experiments.sh --tier baseline --model meta-llama/Meta-Llama-3-8B-Instruct
+        make baseline
+        # OR: ./run_experiments.sh --tier baseline --model meta-llama/Meta-Llama-3-8B-Instruct
         ```
     *   **CPU Offloading**:
         ```bash
-        ./run_experiments.sh --tier cpu
+        make cpu
         ```
     *   **Disk Offloading**:
         ```bash
-        ./run_experiments.sh --tier disk
+        make disk
         ```
 
 ## 📊 Workload Analysis
