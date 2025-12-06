@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Chainlit
+.chainlit/
+.files/
+
+# OS
+.DS_Store
