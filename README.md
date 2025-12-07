@@ -57,16 +57,24 @@ This repository contains a reproducible experiment lab designed to benchmark and
 
     *   **Syntax**:
         ```bash
-        ./run_experiments.sh [WORKLOAD] [TIER]
+        ./run_experiments.sh [OPTIONS]
         ```
+
+    *   **Options**:
+        *   `--workload [agent|rag]`: Workload type (Default: agent)
+        *   `--tier [baseline|cpu|disk]`: Offload tier (Default: cpu)
+        *   `--gpu-mem-util [0.0-1.0]`: vLLM GPU memory utilization (Default: 0.90)
+        *   `--max-model-len [INT]`: Maximum context length (Default: 5000)
+        *   `--chunk-size [INT]`: LMCache chunk size (Default: 256)
+        *   `--dtype [half|float16|bfloat16]`: Model precision (Default: half)
 
     *   **Examples**:
         ```bash
-        # Run Agent Workload with CPU Offloading
-        ./run_experiments.sh agent cpu
+        # Agent Workload, CPU Offload, High GPU Mem
+        ./run_experiments.sh --workload agent --tier cpu --gpu-mem-util 0.95
 
-        # Run RAG Workload with Disk Offloading
-        ./run_experiments.sh rag disk
+        # RAG Workload, Disk Offload, Large Context
+        ./run_experiments.sh --workload rag --tier disk --max-model-len 8000
         ```
     
     *   **Using Makefile**:

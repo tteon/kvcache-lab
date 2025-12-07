@@ -31,6 +31,17 @@ This document is designed to help **Antigravity** (and other AI agents) quickly 
 ./run_experiments.sh agent cpu
 ```
 
+**Advanced Configuration**:
+Agents can tune parameters via flags:
+```bash
+./run_experiments.sh \
+    --workload rag \
+    --tier disk \
+    --gpu-mem-util 0.95 \
+    --max-model-len 8000 \
+    --chunk-size 512
+```
+
 ### 2. Analyzing Results
 **Location**: `results/<workload>_<tier>_<timestamp>/`
 **Structure**:

@@ -14,7 +14,9 @@ API_BASE="http://localhost:$PORT/v1"
 # vLLM Configuration (User configurable)
 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.90}
 MAX_MODEL_LEN=${MAX_MODEL_LEN:-5000}
+MAX_MODEL_LEN=${MAX_MODEL_LEN:-5000}
 DTYPE=${DTYPE:-half}
+CHUNK_SIZE=${CHUNK_SIZE:-256}
 
 # Arguments
 WORKLOAD=$1 # "agent" or "rag"
@@ -38,19 +40,19 @@ NSYS_CMD="nsys profile --trace=cuda,nvtx,osrt,cublas,cudnn --output=${PROFILES_D
 # LMCache Config Generation
 LMCACHE_CONFIG="lmcache_config.yaml"
 if [ "$TIER" == "cpu" ]; then
-    echo "chunk_size: 256" > $LMCACHE_CONFIG
+    echo "chunk_size: $CHUNK_SIZE" > $LMCACHE_CONFIG
     echo "local_device: cpu" >> $LMCACHE_CONFIG
     echo "remote_url: null" >> $LMCACHE_CONFIG
     echo "remote_serde: null" >> $LMCACHE_CONFIG
     # Add other params if needed
 elif [ "$TIER" == "disk" ]; then
-    echo "chunk_size: 256" > $LMCACHE_CONFIG
+    echo "chunk_size: $CHUNK_SIZE" > $LMCACHE_CONFIG
     echo "local_device: file://local_disk/" >> $LMCACHE_CONFIG
     echo "remote_url: null" >> $LMCACHE_CONFIG
     mkdir -p local_disk
 else
     # Baseline or fallback
-    echo "chunk_size: 256" > $LMCACHE_CONFIG
+    echo "chunk_size: $CHUNK_SIZE" > $LMCACHE_CONFIG
     echo "local_device: null" >> $LMCACHE_CONFIG # Disable? Or just don't load?
 fi
 
