@@ -105,6 +105,7 @@ async def main():
     parser.add_argument("--device-name", type=str, default="Unknown", help="GPU Device Name")
     parser.add_argument("--cache-dtype", type=str, default="auto", help="KV Cache Data Type")
     parser.add_argument("--label", type=str, default="experiment", help="Experiment Label (e.g., baseline, cpu)")
+    parser.add_argument("--output-dir", type=str, default=".", help="Directory to save results")
     args = parser.parse_args()
 
     client = AsyncOpenAI(api_key=API_KEY, base_url=args.api_base)
@@ -142,7 +143,9 @@ async def main():
     # Save detailed results to CSV
     # Filename format: metrics_<label>_<model>_<prompt>_<gen>.csv
     safe_model = args.model.replace('/', '_')
-    csv_filename = f"metrics_{args.label}_{safe_model}_{args.prompt_len}_{args.gen_len}.csv"
+    safe_model = args.model.replace('/', '_')
+    csv_filename = os.path.join(args.output_dir, f"metrics_{args.label}_{safe_model}_{args.prompt_len}_{args.gen_len}.csv")
+    os.makedirs(args.output_dir, exist_ok=True)
     with open(csv_filename, "w") as f:
         f.write("request_id,label,prompt_len,gen_len,total_len,ttft,e2e,avg_itl\n")
         for r in results:

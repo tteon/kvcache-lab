@@ -12,7 +12,8 @@ This document is designed to help **Antigravity** (and other AI agents) quickly 
 | File/Dir | Role | Agent Action |
 |---|---|---|
 | `Makefile` | **Command Interface** | EXECUTE `make baseline`, `make analyze`, etc. for quick operations. |
-| `run_experiments.sh` | **Entry Point** | EXECUTE this directly for custom flags not covered by Makefile. |
+| `run_experiments.sh` | **Host Wrapper** | OBSERVE/EXECUTE this to launch experiments. |
+| `scripts/docker_entrypoint.sh` | **Container Entrypoint** | EDIT this to change experiment logic (internal). |
 | `benchmark.py` | **Load Generator** | READ/EDIT this to change request patterns (NVTX, metrics). |
 | `analysis/plot_results.py` | **Analysis** | EXECUTE this to generate visualizations from `results/`. |
 | `configs/*.yaml` | **Backend Config** | EDIT this to tune LMCache parameters. |
@@ -21,25 +22,24 @@ This document is designed to help **Antigravity** (and other AI agents) quickly 
 ## 🕹️ Operational Workflows
 
 ### 1. Running an Experiment
-**Pattern**: `./run_experiments.sh --tier [TIER] [OPTIONS]`
-**Tiers**: `baseline`, `cpu`, `disk`, `scalability`.
-**Common Options**:
-- `--model`: HuggingFace model ID (requires `HF_TOKEN` in `.env`).
-- `--profile`: Enables **Nsight Systems** profiling (output in `profiles/`).
-- `--label`: Custom tag for directory naming.
+**Pattern**: `./run_experiments.sh [WORKLOAD] [TIER]`
+**Workloads**: `agent`, `rag`.
+**Tiers**: `baseline`, `cpu`, `disk`.
 
-**Example Command (Agentic Workload)**:
+**Example Command**:
 ```bash
-./run_experiments.sh --tier cpu --prompt-len 1000 --gen-len 200 --num-requests 20 --label agent_simulation
+./run_experiments.sh agent cpu
 ```
 
 ### 2. Analyzing Results
-**Pattern**: `python3 plot_results.py --input "[PATTERN]" --output-prefix "[PREFIX]"`
-**Input**: Usually `results/archive/metrics_*.csv` or specific run directories.
-**Outputs**:
-- `*_ttft.png`, `*_e2e.png`: Latency plots.
-- `*_pcie.png`: Hardware utilization.
-- `*_report.md`: Textual summary table.
+**Location**: `results/<workload>_<tier>_<timestamp>/`
+**Structure**:
+- `metrics/`: Benchmark CSVs (`metrics_*.csv`) and logs.
+- `profiles/`: Nsight Systems reports (`report.nsys-rep`).
+- `plots/`: Visualizations (`comparison_ttft.png`, etc.).
+- `analysis/`: Theoretical bottleneck analysis (`bottleneck_analysis.txt`).
+
+**Key File to Check**: `analysis/bottleneck_analysis.txt` - Contains the "Compute-Bound" vs "I/O-Bound" verdict.
 
 ### 3. Modifying Infrastructure
 - **To add a new offload backend**: Create a new YAML in `configs/` and update `scripts/utils.sh` to mount it.

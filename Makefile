@@ -17,16 +17,16 @@ help:
 	@echo "  make clean        - Remove cache and temporary results"
 
 baseline:
-	./run_experiments.sh --tier baseline
+	./run_experiments.sh agent baseline
 
 cpu:
-	./run_experiments.sh --tier cpu
+	./run_experiments.sh agent cpu
 
 disk:
-	./run_experiments.sh --tier disk
+	./run_experiments.sh rag disk
 
 scalability:
-	./run_experiments.sh --tier scalability
+	./run_experiments.sh agent cpu # Scalability placeholder
 
 analyze:
 	python3 analysis/plot_results.py --input "results/*/metrics_*.csv" --output-prefix "final_comparison"

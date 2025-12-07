@@ -11,6 +11,8 @@ This repository contains a reproducible experiment lab designed to benchmark and
     *   **System Metrics**: GPU PCIe bandwidth monitoring, CPU/Disk I/O tracking.
     *   **NVTX Annotation**: Automatic tagging of "Prefill" and "Decode" stages in Nsight timelines.
     *   **KV Cache Analysis**: Impact of offloading on memory efficiency and throughput.
+    *   **Bottleneck Calculator**: Theoretical speedup analysis based on compute vs I/O bandwidth.
+*   **Unified Pipeline**: Seamless execution of benchmark followed by automatic analysis (Plotting + Speedup Calc).
 *   **Visualization**: Automated plotting tools to compare performance across tiers.
 
 ## 📂 Repository Structure
@@ -19,10 +21,11 @@ This repository contains a reproducible experiment lab designed to benchmark and
 .
 ├── Makefile                # Unified command interface (make baseline, make analyze)
 ├── benchmark.py            # Async OpenAI-compatible benchmark client
-├── run_experiments.sh      # Orchestration script (Main entry point)
+├── local_experiment_runner.sh # Unified Experiment + Analysis Runner
+├── run_experiments.sh      # Legacy Orchestration script
 ├── analysis/               # Analysis tools
 │   ├── plot_results.py     # Plotting script
-│   └── bottleneck_calculator.py # Theoretical calculator
+│   └── bottleneck_calculator.py # Theoretical speedup/bottleneck calculator
 ├── scripts/                # Helper scripts
 │   └── utils.sh            # Common functions
 ├── configs/                # LMCache configurations (yaml)
@@ -50,20 +53,26 @@ This repository contains a reproducible experiment lab designed to benchmark and
     ```
 
 3.  **Run Experiments**:
-    You can use the `Makefile` shortcuts or `run_experiments.sh` directly.
+    The repository uses a unified runner script that handles Docker overrides and execution.
 
-    *   **Baseline (GPU only)**:
+    *   **Syntax**:
         ```bash
-        make baseline
-        # OR: ./run_experiments.sh --tier baseline --model meta-llama/Meta-Llama-3-8B-Instruct
+        ./run_experiments.sh [WORKLOAD] [TIER]
         ```
-    *   **CPU Offloading**:
+
+    *   **Examples**:
         ```bash
-        make cpu
+        # Run Agent Workload with CPU Offloading
+        ./run_experiments.sh agent cpu
+
+        # Run RAG Workload with Disk Offloading
+        ./run_experiments.sh rag disk
         ```
-    *   **Disk Offloading**:
+    
+    *   **Using Makefile**:
         ```bash
-        make disk
+        make baseline   # Runs agent workload on GPU
+        make disk       # Runs rag workload on Disk
         ```
 
 ## 📊 Workload Analysis
@@ -74,28 +83,50 @@ This lab allows you to simulate specific workloads to identify bottlenecks.
 *   **Characteristics**: Long input prompts, short to medium generation.
 *   **Bottleneck**: Prefill Compute (TTFT) and VRAM Capacity (KV Cache).
 *   **Simulation**:
+**Simulation**:
     ```bash
-    ./run_experiments.sh --tier disk --prompt-len 5000 --gen-len 100 --label long_context
+    ./run_experiments.sh rag disk
     ```
 *   **Analysis**: Check `ttft` in the results. LMCache Disk offload allows handling contexts larger than GPU RAM, though with a latency penalty during retrieval.
 
 ### 2. Agentic Workloads
-*   **Characteristics**: Moderate context (System prompt + Tools), Multi-turn, Latency sensitive.
-*   **Bottleneck**: Latency (TTFT for responsiveness) and Throughput (for parallel agents).
+*   **Characteristics**: Moderate context, multi-turn.
+*   **Bottleneck**: Latency (TTFT) and Throughput.
 *   **Simulation**:
     ```bash
-    ./run_experiments.sh --tier cpu --prompt-len 1000 --gen-len 200 --num-requests 20 --label agent_workload
+    ./run_experiments.sh agent cpu
     ```
-*   **Analysis**: Check `avg_itl` and `e2e`. CPU offloading provides a middle ground, expanding capacity for many agent states while maintaining better latency than disk.
 
 ## 📈 Analyzing Results
+
+The **Unified Pipeline** automatically generates a structured results directory (`results/<workload>_<tier>_<timestamp>/`) containing:
+*   `metrics/`: Raw CSV metrics and vLLM server logs.
+*   `profiles/`: Nsight Systems report (`.nsys-rep`).
+*   `plots/`: Generated comparison plots (TTFT, E2E Latency).
+*   `analysis/`: Theoretical bottleneck analysis (`bottleneck_analysis.txt`).
+
+**Understanding the Bottleneck Calculator**:
+The `bottleneck_calculator.py` estimates theoretical performance based on:
+$T$: Compute time per token (GPU bound).
+$R$: Retrieval time per token (I/O bound).
+$\alpha$: Cache miss rate (portion of data retrieved from storage).
+It outputs identifying whether the workload is **Compute-Bound** or **I/O-Bound** and suggests optimization strategies.
 
 The lab generates CSV files (`metrics_*.csv`) containing per-request performance data.
 
 **Generate Comparative Plots**:
-```bash
-python3 plot_results.py --input "metrics_*.csv" --output-prefix "comparison"
-```
+**Architecture**:
+The system follows a 2-layer architecture to ensure reproducibility:
+1.  **Host Wrapper** (`run_experiments.sh`): Prepares the environment and launches the Docker container.
+2.  **Container Entrypoint** (`scripts/docker_entrypoint.sh`): Sets up vLLM, runs the benchmark, and triggers analysis scripts.
+
+## 🤝 Contributing
+1.  Fork the repository.
+2.  Add new offloading configurations in `configs/`.
+3.  Add new analysis modules in `analysis/`.
+4.  Submit a Pull Request.
+
+## ⚙️ Configuration
 This will output:
 *   `comparison_ttft.png`: Time to First Token vs Sequence Length.
 *   `comparison_e2e.png`: End-to-End Latency vs Sequence Length.
