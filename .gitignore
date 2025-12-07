@@ -13,6 +13,8 @@ cache_store/
 *.log
 results/
 final_report*
+*.nsys-rep
+lmcache_config.yaml
 
 
 # IDE
