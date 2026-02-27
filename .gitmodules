@@ -1,0 +1,3 @@
+[submodule "lmcache-agent-trace"]
+	path = lmcache-agent-trace
+	url = https://github.com/LMCache/lmcache-agent-trace.git

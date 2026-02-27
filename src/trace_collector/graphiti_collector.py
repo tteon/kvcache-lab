@@ -1,0 +1,212 @@
+"""Collect LLM call traces from graphiti graph memory system.
+
+graphiti makes 5-12 LLM calls per add_episode() depending on entity/edge count:
+  - Node extraction, dedup, edge extraction, edge dedup, attributes, summaries
+
+Interception: Subclass OpenAIGenericClient, override _generate_response to log traces.
+Uses OpenAIGenericClient (not OpenAIClient) to avoid responses.parse() which custom
+endpoints don't support.
+"""
+
+import asyncio
+import json
+import logging
+import time
+import typing
+from collections.abc import Iterable
+from datetime import datetime, timezone
+from typing import Any
+
+import openai
+
+from graphiti_core import Graphiti
+from graphiti_core.driver.neo4j_driver import Neo4jDriver
+from graphiti_core.embedder.client import EmbedderClient
+from graphiti_core.llm_client.config import LLMConfig, ModelSize
+from graphiti_core.llm_client.errors import RateLimitError
+from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
+from graphiti_core.prompts.models import Message
+from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
+
+from .common import (
+    LLM_MODEL,
+    NEO4J_PASSWORD,
+    NEO4J_URI,
+    NEO4J_USERNAME,
+    OPENAI_API_KEY,
+    TEST_CORPUS,
+    TRACES_DIR,
+    TraceLogger,
+)
+
+logger = logging.getLogger(__name__)
+
+GRAPHITI_DB = "graphitistore"
+
+EMBEDDING_MODEL = "multi-qa-MiniLM-L6-cos-v1"
+
+
+class LocalEmbedder(EmbedderClient):
+    """Local HuggingFace sentence-transformers embedder (no API key needed)."""
+
+    def __init__(self, model_name: str = EMBEDDING_MODEL):
+        self.model = SentenceTransformer(model_name)
+
+    async def create(
+        self, input_data: str | list[str] | Iterable[int] | Iterable[Iterable[int]]
+    ) -> list[float]:
+        if isinstance(input_data, str):
+            return self.model.encode(input_data).tolist()
+        if isinstance(input_data, list) and input_data and isinstance(input_data[0], str):
+            return self.model.encode(input_data[0]).tolist()
+        return self.model.encode(str(input_data)).tolist()
+
+    async def create_batch(self, input_data_list: list[str]) -> list[list[float]]:
+        embeddings = self.model.encode(input_data_list)
+        return [e.tolist() for e in embeddings]
+
+
+class TracingOpenAIGenericClient(OpenAIGenericClient):
+    """OpenAIGenericClient subclass that logs all LLM calls to a TraceLogger."""
+
+    def __init__(self, config: LLMConfig, trace_logger: TraceLogger, **kwargs):
+        super().__init__(config=config, **kwargs)
+        self.trace_logger = trace_logger
+
+    async def _generate_response(
+        self,
+        messages: list[Message],
+        response_model: type[BaseModel] | None = None,
+        max_tokens: int = 16384,
+        model_size: ModelSize = ModelSize.medium,
+    ) -> dict[str, typing.Any]:
+        # Build input text from messages (before _clean_input modifies them)
+        input_parts = []
+        for m in messages:
+            input_parts.append(f"{m.role}: {m.content}")
+        input_text = "\n".join(input_parts)
+
+        # Replicate parent logic to access raw response for metadata.
+        # Parent (OpenAIGenericClient._generate_response) is ~15 lines:
+        # clean input -> build openai_messages -> set response_format -> API call -> json.loads
+        openai_messages: list[dict[str, Any]] = []
+        for m in messages:
+            m.content = self._clean_input(m.content)
+            if m.role == "user":
+                openai_messages.append({"role": "user", "content": m.content})
+            elif m.role == "system":
+                openai_messages.append({"role": "system", "content": m.content})
+
+        response_format: dict[str, Any] = {"type": "json_object"}
+        if response_model is not None:
+            schema_name = getattr(response_model, "__name__", "structured_response")
+            json_schema = response_model.model_json_schema()
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "schema": json_schema},
+            }
+
+        try:
+            t0 = time.monotonic()
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=openai_messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                response_format=response_format,
+            )
+            latency_ms = round((time.monotonic() - t0) * 1000)
+
+            result_text = response.choices[0].message.content or ""
+            result = json.loads(result_text)
+        except openai.RateLimitError as e:
+            raise RateLimitError from e
+        except Exception as e:
+            logger.error(f"Error in generating LLM response: {e}")
+            raise
+
+        # Build metadata from raw response
+        metadata: dict[str, Any] = {
+            "model": getattr(response, "model", None),
+            "finish_reason": response.choices[0].finish_reason,
+            "latency_ms": latency_ms,
+        }
+        usage = getattr(response, "usage", None)
+        if usage:
+            metadata["prompt_tokens"] = usage.prompt_tokens
+            metadata["completion_tokens"] = usage.completion_tokens
+            metadata["total_tokens"] = usage.total_tokens
+            details = getattr(usage, "prompt_tokens_details", None)
+            if details:
+                metadata["cached_tokens"] = getattr(details, "cached_tokens", 0) or 0
+
+        output_text = json.dumps(result) if result else ""
+        self.trace_logger.log(input_text, output_text, **metadata)
+
+        return result
+
+
+async def _collect_async(user_id: str = "trace_user") -> str:
+    """Async implementation of graphiti trace collection."""
+    output_path = TRACES_DIR / "graphiti_graph" / "graphiti_graph_session.jsonl"
+
+    with TraceLogger(output_path, session_id="graphiti_graph") as trace_logger:
+        llm_config = LLMConfig(
+            api_key=OPENAI_API_KEY,
+            model=LLM_MODEL,
+            small_model=LLM_MODEL,
+        )
+
+        llm_client = TracingOpenAIGenericClient(config=llm_config, trace_logger=trace_logger)
+
+        driver = Neo4jDriver(
+            uri=NEO4J_URI,
+            user=NEO4J_USERNAME,
+            password=NEO4J_PASSWORD,
+            database=GRAPHITI_DB,
+        )
+
+        embedder = LocalEmbedder()
+
+        graphiti = Graphiti(
+            uri=None,
+            user=None,
+            password=None,
+            llm_client=llm_client,
+            graph_driver=driver,
+            embedder=embedder,
+        )
+
+        try:
+            await graphiti.build_indices_and_constraints()
+        except Exception as e:
+            logger.warning(f"  Failed to build indices (may already exist): {e}")
+
+        print(f"[graphiti] Collecting traces for {len(TEST_CORPUS)} items...")
+        for i, text in enumerate(TEST_CORPUS):
+            print(f"  [{i + 1}/{len(TEST_CORPUS)}] {text[:60]}...")
+            try:
+                await graphiti.add_episode(
+                    name=f"fact_{i + 1}",
+                    episode_body=text,
+                    source_description="trace_collection_corpus",
+                    reference_time=datetime.now(timezone.utc),
+                    group_id=GRAPHITI_DB,
+                )
+            except Exception as e:
+                logger.warning(f"  graphiti add_episode() failed for item {i + 1}: {e}")
+
+        await graphiti.close()
+
+    print(f"[graphiti] Traces written to {output_path}")
+    return str(output_path)
+
+
+def collect(user_id: str = "trace_user") -> str:
+    """Run graphiti trace collection. Returns path to output JSONL."""
+    return asyncio.run(_collect_async(user_id))
+
+
+if __name__ == "__main__":
+    collect()

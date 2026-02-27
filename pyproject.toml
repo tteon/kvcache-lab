@@ -1,0 +1,29 @@
+[project]
+name = "lmcache-contributor"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "graphiti-core>=0.26.3",
+    "matplotlib>=3.10.8",
+    "mem0ai[graph]>=1.0.2",
+    "neo4j>=6.1.0",
+    "openai>=1.13.3",
+    "openai-agents>=0.7.0",
+    "python-dotenv>=1.2.1",
+    "sentence-transformers>=2.0.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "codebase/tau2-bench",
+]
+
+[tool.uv.sources]
+tau2 = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "tau2",
+]
