@@ -15,6 +15,7 @@ import time
 import typing
 from collections.abc import Iterable
 from datetime import datetime, timezone
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from .common import (
     TRACES_DIR,
     TraceLogger,
 )
+from .neo4j_metrics import BreakdownLogger, capture_db_snapshot, patch_neo4j_calls
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +74,16 @@ class LocalEmbedder(EmbedderClient):
 class TracingOpenAIGenericClient(OpenAIGenericClient):
     """OpenAIGenericClient subclass that logs all LLM calls to a TraceLogger."""
 
-    def __init__(self, config: LLMConfig, trace_logger: TraceLogger, **kwargs):
+    def __init__(
+        self,
+        config: LLMConfig,
+        trace_logger: TraceLogger,
+        breakdown_logger: BreakdownLogger | None = None,
+        **kwargs,
+    ):
         super().__init__(config=config, **kwargs)
         self.trace_logger = trace_logger
+        self.breakdown_logger = breakdown_logger
 
     async def _generate_response(
         self,
@@ -145,6 +154,21 @@ class TracingOpenAIGenericClient(OpenAIGenericClient):
 
         output_text = json.dumps(result) if result else ""
         self.trace_logger.log(input_text, output_text, **metadata)
+        if self.breakdown_logger is not None:
+            self.breakdown_logger.log_event(
+                "openai",
+                "chat_completion",
+                duration_ms=latency_ms,
+                prompt_hash=sha1(input_text.encode("utf-8")).hexdigest()[:12],
+                prompt_preview=input_text[:240],
+                prompt_size_chars=len(input_text),
+                output_size_chars=len(output_text),
+                prompt_tokens=metadata.get("prompt_tokens"),
+                completion_tokens=metadata.get("completion_tokens"),
+                total_tokens=metadata.get("total_tokens"),
+                cached_tokens=metadata.get("cached_tokens"),
+                prompt_text=input_text,
+            )
 
         return result
 
@@ -156,6 +180,8 @@ async def _collect_async(
     session_id: str = "graphiti_graph",
     database: str = GRAPHITI_DB,
     group_id: str | None = None,
+    breakdown_path: str | Path | None = None,
+    breakdown_context: dict[str, Any] | None = None,
 ) -> str:
     """Async implementation of graphiti trace collection."""
     if output_path is None:
@@ -163,55 +189,136 @@ async def _collect_async(
     output_path = Path(output_path)
     rows = corpus if corpus is not None else TEST_CORPUS
     group = group_id if group_id is not None else database
-
-    with TraceLogger(output_path, session_id=session_id) as trace_logger:
-        llm_config = LLMConfig(
-            api_key=LLM_API_KEY,
-            base_url=LLM_API_BASE,
-            model=LLM_MODEL,
-            small_model=LLM_MODEL,
+    b_logger = (
+        BreakdownLogger(
+            breakdown_path,
+            session_id=session_id,
+            collector="graphiti",
+            **(breakdown_context or {}),
         )
+        if breakdown_path is not None
+        else None
+    )
 
-        llm_client = TracingOpenAIGenericClient(config=llm_config, trace_logger=trace_logger)
+    try:
+        with TraceLogger(output_path, session_id=session_id) as trace_logger:
+            llm_config = LLMConfig(
+                api_key=LLM_API_KEY,
+                base_url=LLM_API_BASE,
+                model=LLM_MODEL,
+                small_model=LLM_MODEL,
+            )
 
-        driver = Neo4jDriver(
-            uri=NEO4J_URI,
-            user=NEO4J_USERNAME,
-            password=NEO4J_PASSWORD,
-            database=database,
-        )
+            llm_client = TracingOpenAIGenericClient(
+                config=llm_config,
+                trace_logger=trace_logger,
+                breakdown_logger=b_logger,
+            )
 
-        embedder = LocalEmbedder()
+            driver = Neo4jDriver(
+                uri=NEO4J_URI,
+                user=NEO4J_USERNAME,
+                password=NEO4J_PASSWORD,
+                database=database,
+            )
 
-        graphiti = Graphiti(
-            uri=None,
-            user=None,
-            password=None,
-            llm_client=llm_client,
-            graph_driver=driver,
-            embedder=embedder,
-        )
+            embedder = LocalEmbedder()
 
-        try:
-            await graphiti.build_indices_and_constraints()
-        except Exception as e:
-            logger.warning(f"  Failed to build indices (may already exist): {e}")
+            graphiti = Graphiti(
+                uri=None,
+                user=None,
+                password=None,
+                llm_client=llm_client,
+                graph_driver=driver,
+                embedder=embedder,
+            )
 
-        print(f"[graphiti] Collecting traces for {len(rows)} items...")
-        for i, text in enumerate(rows):
-            print(f"  [{i + 1}/{len(rows)}] {text[:60]}...")
-            try:
-                await graphiti.add_episode(
-                    name=f"fact_{i + 1}",
-                    episode_body=text,
-                    source_description="trace_collection_corpus",
-                    reference_time=datetime.now(timezone.utc),
-                    group_id=group,
+            if b_logger is not None:
+                b_logger.log_event("collector", "start", item_count=len(rows), neo4j_database=database)
+                capture_db_snapshot(
+                    b_logger,
+                    uri=NEO4J_URI,
+                    username=NEO4J_USERNAME,
+                    password=NEO4J_PASSWORD,
+                    database=database,
+                    stage="before_collection",
                 )
-            except Exception as e:
-                logger.warning(f"  graphiti add_episode() failed for item {i + 1}: {e}")
 
-        await graphiti.close()
+            try:
+                with patch_neo4j_calls(b_logger):
+                    build_started = time.monotonic()
+                    try:
+                        await graphiti.build_indices_and_constraints()
+                        if b_logger is not None:
+                            b_logger.log_event(
+                                "graphiti",
+                                "build_indices",
+                                duration_ms=(time.monotonic() - build_started) * 1000.0,
+                            )
+                    except Exception as e:
+                        logger.warning(f"  Failed to build indices (may already exist): {e}")
+                        if b_logger is not None:
+                            b_logger.log_event(
+                                "graphiti",
+                                "build_indices",
+                                status="error",
+                                duration_ms=(time.monotonic() - build_started) * 1000.0,
+                                error=str(e),
+                            )
+
+                    print(f"[graphiti] Collecting traces for {len(rows)} items...")
+                    for i, text in enumerate(rows):
+                        print(f"  [{i + 1}/{len(rows)}] {text[:60]}...")
+                        started = time.monotonic()
+                        try:
+                            await graphiti.add_episode(
+                                name=f"fact_{i + 1}",
+                                episode_body=text,
+                                source_description="trace_collection_corpus",
+                                reference_time=datetime.now(timezone.utc),
+                                group_id=group,
+                            )
+                        except Exception as e:
+                            logger.warning(f"  graphiti add_episode() failed for item {i + 1}: {e}")
+                            if b_logger is not None:
+                                b_logger.log_event(
+                                    "graphiti",
+                                    "add_episode",
+                                    status="error",
+                                    duration_ms=(time.monotonic() - started) * 1000.0,
+                                    step=i + 1,
+                                    input_size_chars=len(text),
+                                    error=str(e),
+                                )
+                            continue
+                        if b_logger is not None:
+                            b_logger.log_event(
+                                "graphiti",
+                                "add_episode",
+                                duration_ms=(time.monotonic() - started) * 1000.0,
+                                step=i + 1,
+                                input_size_chars=len(text),
+                            )
+            except Exception as e:
+                if b_logger is not None:
+                    b_logger.log_event("graphiti", "collection", status="error", error=str(e))
+                raise
+            finally:
+                await graphiti.close()
+
+            if b_logger is not None:
+                capture_db_snapshot(
+                    b_logger,
+                    uri=NEO4J_URI,
+                    username=NEO4J_USERNAME,
+                    password=NEO4J_PASSWORD,
+                    database=database,
+                    stage="after_collection",
+                )
+                b_logger.log_event("collector", "finish")
+    finally:
+        if b_logger is not None:
+            b_logger.close()
 
     print(f"[graphiti] Traces written to {output_path}")
     return str(output_path)
@@ -224,6 +331,8 @@ def collect(
     session_id: str = "graphiti_graph",
     database: str = GRAPHITI_DB,
     group_id: str | None = None,
+    breakdown_path: str | Path | None = None,
+    breakdown_context: dict[str, Any] | None = None,
 ) -> str:
     """Run graphiti trace collection. Returns path to output JSONL."""
     return asyncio.run(
@@ -234,6 +343,8 @@ def collect(
             session_id=session_id,
             database=database,
             group_id=group_id,
+            breakdown_path=breakdown_path,
+            breakdown_context=breakdown_context,
         )
     )
 

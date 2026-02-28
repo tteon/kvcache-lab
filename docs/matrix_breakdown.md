@@ -41,6 +41,38 @@
 | taubench_legacy | mem0 | not_collected | 0 | 0.0 | 0.00% | 0.00% | 0.00% |
 | taubench_legacy | graphiti | not_collected | 0 | 0.0 | 0.00% | 0.00% | 0.00% |
 
+## Workload Breakdown
+
+| Dataset | Baseline | Status | Prompt calls | Avg prompt chars | Neo4j queries | Search | Indexing | p50 ms | p95 ms | Avg rec/query | Avg result bytes/query | Node delta | Rel delta | Online idx(after) | Building idx(after) |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| corpus50 | openai_base | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| corpus50 | mem0 | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| corpus50 | graphiti | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_airline | openai_base | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_airline | mem0 | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_airline | graphiti | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_retail | openai_base | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_retail | mem0 | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_retail | graphiti | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_telecom | openai_base | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_telecom | mem0 | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| tau2_telecom | graphiti | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| taubench_legacy | openai_base | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| taubench_legacy | mem0 | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+| taubench_legacy | graphiti | not_collected | 0 | 0.0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.00 | 0.0 | 0 | 0 | 0 | 0 |
+
+## Top Cypher Patterns
+
+| Dataset | Baseline | Query hash | Tag | Calls | Avg ms | Query preview |
+|---|---|---|---|---:|---:|---|
+| - | - | - | - | 0 | 0.0 | no breakdown data |
+
+## Top Prompt Patterns
+
+| Dataset | Baseline | Prompt hash | Calls | Prompt preview |
+|---|---|---|---:|---|
+| - | - | - | 0 | no breakdown data |
+
 ## Interpretation Hints
 
 - High prefix + small gap: prompt prefixes are stable.
