@@ -15,6 +15,7 @@ import time
 import typing
 from collections.abc import Iterable
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import openai
@@ -148,11 +149,22 @@ class TracingOpenAIGenericClient(OpenAIGenericClient):
         return result
 
 
-async def _collect_async(user_id: str = "trace_user") -> str:
+async def _collect_async(
+    user_id: str = "trace_user",
+    corpus: list[str] | None = None,
+    output_path: str | Path | None = None,
+    session_id: str = "graphiti_graph",
+    database: str = GRAPHITI_DB,
+    group_id: str | None = None,
+) -> str:
     """Async implementation of graphiti trace collection."""
-    output_path = TRACES_DIR / "graphiti_graph" / "graphiti_graph_session.jsonl"
+    if output_path is None:
+        output_path = TRACES_DIR / "graphiti_graph" / "graphiti_graph_session.jsonl"
+    output_path = Path(output_path)
+    rows = corpus if corpus is not None else TEST_CORPUS
+    group = group_id if group_id is not None else database
 
-    with TraceLogger(output_path, session_id="graphiti_graph") as trace_logger:
+    with TraceLogger(output_path, session_id=session_id) as trace_logger:
         llm_config = LLMConfig(
             api_key=LLM_API_KEY,
             base_url=LLM_API_BASE,
@@ -166,7 +178,7 @@ async def _collect_async(user_id: str = "trace_user") -> str:
             uri=NEO4J_URI,
             user=NEO4J_USERNAME,
             password=NEO4J_PASSWORD,
-            database=GRAPHITI_DB,
+            database=database,
         )
 
         embedder = LocalEmbedder()
@@ -185,16 +197,16 @@ async def _collect_async(user_id: str = "trace_user") -> str:
         except Exception as e:
             logger.warning(f"  Failed to build indices (may already exist): {e}")
 
-        print(f"[graphiti] Collecting traces for {len(TEST_CORPUS)} items...")
-        for i, text in enumerate(TEST_CORPUS):
-            print(f"  [{i + 1}/{len(TEST_CORPUS)}] {text[:60]}...")
+        print(f"[graphiti] Collecting traces for {len(rows)} items...")
+        for i, text in enumerate(rows):
+            print(f"  [{i + 1}/{len(rows)}] {text[:60]}...")
             try:
                 await graphiti.add_episode(
                     name=f"fact_{i + 1}",
                     episode_body=text,
                     source_description="trace_collection_corpus",
                     reference_time=datetime.now(timezone.utc),
-                    group_id=GRAPHITI_DB,
+                    group_id=group,
                 )
             except Exception as e:
                 logger.warning(f"  graphiti add_episode() failed for item {i + 1}: {e}")
@@ -205,9 +217,25 @@ async def _collect_async(user_id: str = "trace_user") -> str:
     return str(output_path)
 
 
-def collect(user_id: str = "trace_user") -> str:
+def collect(
+    user_id: str = "trace_user",
+    corpus: list[str] | None = None,
+    output_path: str | Path | None = None,
+    session_id: str = "graphiti_graph",
+    database: str = GRAPHITI_DB,
+    group_id: str | None = None,
+) -> str:
     """Run graphiti trace collection. Returns path to output JSONL."""
-    return asyncio.run(_collect_async(user_id))
+    return asyncio.run(
+        _collect_async(
+            user_id=user_id,
+            corpus=corpus,
+            output_path=output_path,
+            session_id=session_id,
+            database=database,
+            group_id=group_id,
+        )
+    )
 
 
 if __name__ == "__main__":

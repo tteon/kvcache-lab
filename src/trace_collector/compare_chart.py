@@ -13,27 +13,49 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .common import PROJECT_ROOT, TRACES_DIR
+from .common import TRACES_DIR
 
 SYSTEMS = {
+    "openai_base": {
+        "match_candidates": [
+            TRACES_DIR / "openai_base_result" / "openai_base_matches.jsonl",
+            TRACES_DIR / "openai_base_result" / "openai_base_matches_8gb.jsonl",
+        ],
+        "label": "openai\nbase",
+    },
     "mem0": {
-        "matches": TRACES_DIR / "mem0_result" / "mem0_matches_8gb.jsonl",
+        "match_candidates": [
+            TRACES_DIR / "mem0_result" / "mem0_matches.jsonl",
+            TRACES_DIR / "mem0_result" / "mem0_matches_8gb.jsonl",
+        ],
         "label": "mem0\n(graph memory)",
     },
     "graphiti": {
-        "matches": TRACES_DIR / "graphiti_result" / "graphiti_matches_8gb.jsonl",
+        "match_candidates": [
+            TRACES_DIR / "graphiti_result" / "graphiti_matches.jsonl",
+            TRACES_DIR / "graphiti_result" / "graphiti_matches_8gb.jsonl",
+        ],
         "label": "graphiti\n(temporal KG)",
     },
     "tau2_airline": {
-        "matches": TRACES_DIR / "tau2_airline_result" / "tau2_airline_matches_8gb.jsonl",
+        "match_candidates": [
+            TRACES_DIR / "tau2_airline_result" / "tau2_airline_matches.jsonl",
+            TRACES_DIR / "tau2_airline_result" / "tau2_airline_matches_8gb.jsonl",
+        ],
         "label": "tau2\nairline",
     },
     "tau2_retail": {
-        "matches": TRACES_DIR / "tau2_retail_result" / "tau2_retail_matches_8gb.jsonl",
+        "match_candidates": [
+            TRACES_DIR / "tau2_retail_result" / "tau2_retail_matches.jsonl",
+            TRACES_DIR / "tau2_retail_result" / "tau2_retail_matches_8gb.jsonl",
+        ],
         "label": "tau2\nretail",
     },
     "tau2_telecom": {
-        "matches": TRACES_DIR / "tau2_telecom_result" / "tau2_telecom_matches_8gb.jsonl",
+        "match_candidates": [
+            TRACES_DIR / "tau2_telecom_result" / "tau2_telecom_matches.jsonl",
+            TRACES_DIR / "tau2_telecom_result" / "tau2_telecom_matches_8gb.jsonl",
+        ],
         "label": "tau2\ntelecom",
     },
 }
@@ -102,10 +124,11 @@ def main():
 
     results = {}
     for name, info in SYSTEMS.items():
-        if not info["matches"].exists():
+        matches_path = next((p for p in info["match_candidates"] if p.exists()), None)
+        if matches_path is None:
             print(f"  [{name}] No matches file, skipping")
             continue
-        rates = _compute_hit_rates(info["matches"])
+        rates = _compute_hit_rates(matches_path)
         rates["label"] = info["label"]
         results[name] = rates
         print(

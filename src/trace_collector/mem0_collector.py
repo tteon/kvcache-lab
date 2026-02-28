@@ -10,6 +10,7 @@ Interception: Uses built-in response_callback in OpenAIConfig.
 
 import json
 import logging
+from pathlib import Path
 
 from mem0 import Memory
 
@@ -77,11 +78,20 @@ def _make_callback(trace_logger: TraceLogger):
     return callback
 
 
-def collect(user_id: str = "trace_user") -> str:
+def collect(
+    user_id: str = "trace_user",
+    corpus: list[str] | None = None,
+    output_path: str | Path | None = None,
+    session_id: str = "mem0_graph",
+    database: str = MEM0_DB,
+) -> str:
     """Run mem0 trace collection. Returns path to output JSONL."""
-    output_path = TRACES_DIR / "mem0_graph" / "mem0_graph_session.jsonl"
+    if output_path is None:
+        output_path = TRACES_DIR / "mem0_graph" / "mem0_graph_session.jsonl"
+    output_path = Path(output_path)
+    rows = corpus if corpus is not None else TEST_CORPUS
 
-    with TraceLogger(output_path, session_id="mem0_graph") as trace_logger:
+    with TraceLogger(output_path, session_id=session_id) as trace_logger:
         callback = _make_callback(trace_logger)
 
         llm_config = {
@@ -102,7 +112,7 @@ def collect(user_id: str = "trace_user") -> str:
                     "url": NEO4J_URI,
                     "username": NEO4J_USERNAME,
                     "password": NEO4J_PASSWORD,
-                    "database": MEM0_DB,
+                    "database": database,
                 },
                 "llm": llm_config,
             },
@@ -118,9 +128,9 @@ def collect(user_id: str = "trace_user") -> str:
 
         m = Memory.from_config(config)
 
-        print(f"[mem0] Collecting traces for {len(TEST_CORPUS)} items...")
-        for i, text in enumerate(TEST_CORPUS):
-            print(f"  [{i + 1}/{len(TEST_CORPUS)}] {text[:60]}...")
+        print(f"[mem0] Collecting traces for {len(rows)} items...")
+        for i, text in enumerate(rows):
+            print(f"  [{i + 1}/{len(rows)}] {text[:60]}...")
             try:
                 m.add(text, user_id=user_id)
             except Exception as e:

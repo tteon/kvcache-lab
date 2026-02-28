@@ -2,6 +2,7 @@
 
 Usage:
     python -m src.trace_collector.run_all --system all
+    python -m src.trace_collector.run_all --system openai_base
     python -m src.trace_collector.run_all --system mem0
     python -m src.trace_collector.run_all --system graphiti
     python -m src.trace_collector.run_all --system tau2_telecom
@@ -13,7 +14,13 @@ import argparse
 import sys
 import time
 
-SYSTEMS = ["mem0", "graphiti", "tau2_telecom", "tau2_airline", "tau2_retail"]
+SYSTEMS = ["openai_base", "mem0", "graphiti", "tau2_telecom", "tau2_airline", "tau2_retail"]
+
+
+def run_openai_base():
+    from .openai_base_collector import collect
+
+    return collect()
 
 
 def run_mem0():
@@ -47,6 +54,7 @@ def run_tau2_retail():
 
 
 COLLECTORS = {
+    "openai_base": run_openai_base,
     "mem0": run_mem0,
     "graphiti": run_graphiti,
     "tau2_telecom": run_tau2_telecom,

@@ -5,6 +5,7 @@ and optional match detail JSONL files.
 
 Usage:
     python -m src.trace_collector.analyze --system all
+    python -m src.trace_collector.analyze --system openai_base
     python -m src.trace_collector.analyze --system mem0
     python -m src.trace_collector.analyze --system graphiti
     python -m src.trace_collector.analyze --system tau2_telecom
@@ -18,9 +19,10 @@ from .common import PROJECT_ROOT, TRACES_DIR
 
 ANALYSIS_SCRIPT = PROJECT_ROOT / "lmcache-agent-trace" / "prefix_analysis.py"
 
-SYSTEMS = ["mem0", "graphiti", "tau2_telecom", "tau2_airline", "tau2_retail"]
+SYSTEMS = ["openai_base", "mem0", "graphiti", "tau2_telecom", "tau2_airline", "tau2_retail"]
 
 TRACE_FILES = {
+    "openai_base": TRACES_DIR / "openai_base" / "openai_base_session.jsonl",
     "mem0": TRACES_DIR / "mem0_graph" / "mem0_graph_session.jsonl",
     "graphiti": TRACES_DIR / "graphiti_graph" / "graphiti_graph_session.jsonl",
     "tau2_telecom": TRACES_DIR / "tau2_telecom" / "tau2_telecom_session.jsonl",

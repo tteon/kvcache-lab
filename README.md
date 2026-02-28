@@ -23,6 +23,12 @@ End-to-end pipeline:
 3. Run `lmcache-agent-trace/prefix_analysis.py`.
 4. Compare `prefix` vs `substring` hit rates and their gap.
 
+Matrix extension:
+- Run `dataset x baseline` experiments with `openai_base`, `mem0`, `graphiti`.
+- Datasets include `corpus50`, `tau2_*`, and `taubench_legacy` input replay.
+- In matrix mode, `tau2_*` and `taubench_legacy` are replayed as prompt-text datasets
+  (not full tau2 environment simulation loops).
+
 Data flow:
 
 `collector -> trace jsonl -> prefix_analysis -> matches jsonl + plot -> comparison chart`
@@ -63,6 +69,19 @@ uv run python -m src.trace_collector.analyze --system mem0
 uv run python -m src.trace_collector.analyze --system graphiti
 ```
 
+Matrix mode commands:
+
+```bash
+# 1) Collect matrix traces (all datasets x all baselines)
+uv run python -m src.trace_collector.run_matrix --dataset all --baseline all
+
+# 2) Analyze matrix traces
+uv run python -m src.trace_collector.analyze_matrix --dataset all --baseline all
+
+# 3) Build markdown report
+uv run python -m src.trace_collector.matrix_report -o docs/matrix_breakdown.md
+```
+
 Core outputs:
 - `data/traces/mem0_graph/mem0_graph_session.jsonl`
 - `data/traces/graphiti_graph/graphiti_graph_session.jsonl`
@@ -78,11 +97,16 @@ Interpretation guide:
 ```text
 src/trace_collector/
   common.py            # env resolution, test corpus, TraceLogger
+  datasets.py          # dataset loaders for matrix experiments
   run_all.py           # collector orchestrator
+  run_matrix.py        # dataset x baseline trace orchestrator
   mem0_collector.py    # mem0 trace collection
   graphiti_collector.py# graphiti trace collection
+  openai_base_collector.py # direct OpenAI baseline collection
   tau2_collector.py    # tau2 trace collection
   analyze.py           # wrapper around prefix_analysis.py
+  analyze_matrix.py    # matrix trace analyzer
+  matrix_report.py     # matrix markdown report generator
   compare_chart.py     # cross-system comparison chart
 
 data/traces/
@@ -182,6 +206,14 @@ uv run python -m src.trace_collector.run_all --system mem0
 uv run python -m src.trace_collector.run_all --system graphiti
 uv run python -m src.trace_collector.analyze --system mem0
 uv run python -m src.trace_collector.analyze --system graphiti
+```
+
+For dataset x baseline matrix:
+
+```bash
+uv run python -m src.trace_collector.run_matrix --dataset all --baseline all
+uv run python -m src.trace_collector.analyze_matrix --dataset all --baseline all
+uv run python -m src.trace_collector.matrix_report -o docs/matrix_breakdown.md
 ```
 
 ## How To Analyze The Whole Framework
