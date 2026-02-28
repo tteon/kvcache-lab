@@ -23,3 +23,7 @@ example_codebase/
 
 # Neo4j data (Docker volumes)
 data/neo4j/
+
+# Generated trace analysis artifacts
+data/traces/*_result/
+data/traces/*/*.jsonl.bak*

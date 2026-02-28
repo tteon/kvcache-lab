@@ -1999,6 +1999,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "tau2" },
 ]
 
@@ -2015,7 +2016,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "tau2", editable = "codebase/tau2-bench" }]
+dev = [
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "tau2", editable = "codebase/tau2-bench" },
+]
 
 [[package]]
 name = "loguru"

@@ -61,12 +61,12 @@ def analyze_system(system: str) -> bool:
         "--log-matches",
         str(match_jsonl),
         "--tokenizer",
-        "gpt2",
+        "meta-llama/Llama-3.1-8B",
     ]
 
     print(f"  [{system}] Running prefix_analysis.py...")
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
         if result.returncode == 0:
             print(f"  [{system}] Analysis complete:")
             print(f"    Plot: {output_png}")
@@ -78,7 +78,7 @@ def analyze_system(system: str) -> bool:
                 print(f"    stderr: {result.stderr[:500]}")
             return False
     except subprocess.TimeoutExpired:
-        print(f"  [{system}] Analysis timed out (>600s)")
+        print(f"  [{system}] Analysis timed out (>1800s)")
         return False
 
 

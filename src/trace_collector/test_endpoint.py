@@ -4,15 +4,23 @@ import sys
 
 from openai import OpenAI
 
-from .common import GPU_API_KEY, GPU_ENDPOINT, GPU_MODEL
+from .common import LLM_API_BASE, LLM_API_KEY, LLM_MODEL
 
 
-def test_chat_completions(client: OpenAI) -> bool:
+def _mask_secret(value: str) -> str:
+    if not value:
+        return "(not set)"
+    if len(value) <= 8:
+        return f"{value[:2]}***"
+    return f"{value[:8]}...{value[-4:]}"
+
+
+def check_chat_completions(client: OpenAI) -> bool:
     """Test basic chat completions."""
     print("[1/3] Testing chat completions...", end=" ")
     try:
         response = client.chat.completions.create(
-            model=GPU_MODEL,
+            model=LLM_MODEL,
             messages=[{"role": "user", "content": "Say 'hello' and nothing else."}],
             max_tokens=10,
         )
@@ -24,7 +32,7 @@ def test_chat_completions(client: OpenAI) -> bool:
         return False
 
 
-def test_tool_calling(client: OpenAI) -> bool:
+def check_tool_calling(client: OpenAI) -> bool:
     """Test tool/function calling (needed for mem0)."""
     print("[2/3] Testing tool calling...", end=" ")
     tools = [
@@ -55,7 +63,7 @@ def test_tool_calling(client: OpenAI) -> bool:
     ]
     try:
         response = client.chat.completions.create(
-            model=GPU_MODEL,
+            model=LLM_MODEL,
             messages=[{"role": "user", "content": "Marie Curie was a physicist."}],
             tools=tools,
             tool_choice="auto",
@@ -76,12 +84,12 @@ def test_tool_calling(client: OpenAI) -> bool:
         return False
 
 
-def test_json_mode(client: OpenAI) -> bool:
+def check_json_mode(client: OpenAI) -> bool:
     """Test JSON response format (needed for graphiti)."""
     print("[3/3] Testing JSON mode...", end=" ")
     try:
         response = client.chat.completions.create(
-            model=GPU_MODEL,
+            model=LLM_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -104,17 +112,21 @@ def test_json_mode(client: OpenAI) -> bool:
 
 
 def main():
-    print(f"Endpoint: {GPU_ENDPOINT}")
-    print(f"Model:    {GPU_MODEL}")
-    print(f"API Key:  {GPU_API_KEY[:8]}...{GPU_API_KEY[-4:]}")
+    print(f"Endpoint: {LLM_API_BASE}")
+    print(f"Model:    {LLM_MODEL}")
+    print(f"API Key:  {_mask_secret(LLM_API_KEY)}")
     print()
 
-    client = OpenAI(base_url=GPU_ENDPOINT, api_key=GPU_API_KEY)
+    if not LLM_API_KEY:
+        print("OPENAI_API_KEY/LLM_API_KEY is not configured.")
+        sys.exit(1)
+
+    client = OpenAI(base_url=LLM_API_BASE, api_key=LLM_API_KEY)
 
     results = [
-        test_chat_completions(client),
-        test_tool_calling(client),
-        test_json_mode(client),
+        check_chat_completions(client),
+        check_tool_calling(client),
+        check_json_mode(client),
     ]
 
     print()

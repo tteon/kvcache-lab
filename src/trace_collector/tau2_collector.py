@@ -14,11 +14,14 @@ Domains:
 
 import json
 import logging
+import os
 import time
 
 import litellm
 
 from .common import (
+    LLM_API_BASE,
+    LLM_API_KEY,
     LLM_MODEL,
     TRACES_DIR,
     TraceLogger,
@@ -31,6 +34,37 @@ TAU2_DOMAINS = ["airline", "retail", "telecom"]
 
 # Default number of tasks per domain (each task = 1 multi-turn conversation)
 DEFAULT_NUM_TASKS = 10
+
+
+def _configure_litellm_endpoint():
+    """Temporarily align litellm/OpenAI env with collector endpoint settings."""
+    env_keys = ("OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_BASE_URL")
+    previous_env = {key: os.environ.get(key) for key in env_keys}
+
+    previous_litellm = {
+        "api_key": getattr(litellm, "api_key", None),
+        "api_base": getattr(litellm, "api_base", None),
+    }
+
+    if LLM_API_KEY:
+        os.environ["OPENAI_API_KEY"] = LLM_API_KEY
+        litellm.api_key = LLM_API_KEY
+    if LLM_API_BASE:
+        os.environ["OPENAI_API_BASE"] = LLM_API_BASE
+        os.environ["OPENAI_BASE_URL"] = LLM_API_BASE
+        litellm.api_base = LLM_API_BASE
+
+    def restore():
+        for key, value in previous_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+        litellm.api_key = previous_litellm["api_key"]
+        litellm.api_base = previous_litellm["api_base"]
+
+    return restore
 
 
 def _patch_litellm(trace_logger: TraceLogger):
@@ -112,7 +146,8 @@ def collect(domain: str = "telecom", num_tasks: int = DEFAULT_NUM_TASKS) -> str:
     output_path = TRACES_DIR / f"tau2_{domain}" / f"tau2_{domain}_session.jsonl"
 
     with TraceLogger(output_path, session_id=f"tau2_{domain}") as trace_logger:
-        restore = _patch_litellm(trace_logger)
+        restore_trace_patch = _patch_litellm(trace_logger)
+        restore_endpoint = _configure_litellm_endpoint()
 
         try:
             # Disable litellm cache to get clean traces
@@ -145,7 +180,8 @@ def collect(domain: str = "telecom", num_tasks: int = DEFAULT_NUM_TASKS) -> str:
             print(f"[tau2-{domain}] Collecting traces for {num_tasks} tasks using {LLM_MODEL}...")
             run_domain(config)
         finally:
-            restore()
+            restore_trace_patch()
+            restore_endpoint()
 
     print(f"[tau2-{domain}] Traces written to {output_path}")
     return str(output_path)

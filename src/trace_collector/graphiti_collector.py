@@ -30,11 +30,12 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
 from .common import (
+    LLM_API_BASE,
+    LLM_API_KEY,
     LLM_MODEL,
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USERNAME,
-    OPENAI_API_KEY,
     TEST_CORPUS,
     TRACES_DIR,
     TraceLogger,
@@ -153,7 +154,8 @@ async def _collect_async(user_id: str = "trace_user") -> str:
 
     with TraceLogger(output_path, session_id="graphiti_graph") as trace_logger:
         llm_config = LLMConfig(
-            api_key=OPENAI_API_KEY,
+            api_key=LLM_API_KEY,
+            base_url=LLM_API_BASE,
             model=LLM_MODEL,
             small_model=LLM_MODEL,
         )

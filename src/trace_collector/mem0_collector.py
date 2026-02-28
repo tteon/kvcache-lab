@@ -14,11 +14,12 @@ import logging
 from mem0 import Memory
 
 from .common import (
+    LLM_API_BASE,
+    LLM_API_KEY,
     LLM_MODEL,
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USERNAME,
-    OPENAI_API_KEY,
     TEST_CORPUS,
     TRACES_DIR,
     TraceLogger,
@@ -87,7 +88,8 @@ def collect(user_id: str = "trace_user") -> str:
             "provider": "openai",
             "config": {
                 "model": LLM_MODEL,
-                "api_key": OPENAI_API_KEY,
+                "api_key": LLM_API_KEY,
+                "openai_base_url": LLM_API_BASE,
                 "response_callback": callback,
             },
         }

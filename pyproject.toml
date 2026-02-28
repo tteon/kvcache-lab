@@ -1,7 +1,7 @@
 [project]
 name = "lmcache-contributor"
 version = "0.1.0"
-description = "Add your description here"
+description = "Trace collection and cache-hit analysis for graph-memory agent workloads"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -25,5 +25,12 @@ tau2 = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "pytest>=8.4.2",
     "tau2",
 ]
+
+[tool.pytest.ini_options]
+addopts = "-ra --ignore=codebase --ignore=vendor --ignore=data --ignore=lmcache-agent-trace"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+norecursedirs = [".git", ".venv", "codebase", "vendor", "data", "lmcache-agent-trace"]
