@@ -1,22 +1,29 @@
-# Python
+# Python-generated files
 __pycache__/
-*.pyc
-venv/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Vendored dependencies
+vendor/
+
+# Cloned reference codebases
+codebase/
+
+# Example codebase (reference only)
+example_codebase/
+
+# Environment secrets
 .env
 
-# Data & Results
-cache_store/
-*.csv
-*.png
-*.txt
-!requirements.txt
-*.log
-results/
-final_report*
-*.nsys-rep
-lmcache_config.yaml
+# Neo4j data (Docker volumes)
+data/neo4j/
 
-
-# IDE
-.vscode/
-.idea/
+# Generated trace analysis artifacts
+data/traces/*_result/
+data/traces/*/*.jsonl.bak*

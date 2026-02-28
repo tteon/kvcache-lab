@@ -1,0 +1,51 @@
+services:
+  neo4j:
+    image: graphstack/dozerdb:5.26.3.0
+    container_name: agent-memory-db
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_PLUGINS=["apoc", "n10s"]
+      
+      # --- Memory Tuning (32GB RAM 기준) ---
+      - NEO4J_server_memory_heap_initial__size=8G
+      - NEO4J_server_memory_heap_max__size=8G
+      - NEO4J_server_memory_pagecache_size=12G
+      
+      # --- Network & Thread Tuning ---
+      - NEO4J_server_bolt_thread__pool__min__size=10
+      - NEO4J_server_bolt_thread__pool__max__size=200
+      
+      # --- Security & DozerDB Fixes ---
+      # [수정] semantics.* 추가 (로그 경고 반영)
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*,semantics.*,gds.*,dozerdb.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*,semantics.*,gds.*,dozerdb.*
+      
+      # [삭제됨] 에러 원인인 'dbms.main_databases...' 설정 제거
+      
+      # [추가] 엄격한 설정 검증 비활성화 (버전 차이로 인한 부팅 실패 방지)
+      - NEO4J_server_config_strict__validation_enabled=false
+      
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+
+    ulimits:
+      nofile:
+        soft: 40000
+        hard: 40000
+
+    volumes:
+      - ./data/neo4j/data:/data:delegated
+      - ./data/neo4j/logs:/logs
+      - ./data/neo4j/import:/var/lib/neo4j/import
+      - ./data/neo4j/plugins:/plugins
+    
+    networks:
+      - agent-net
+    restart: unless-stopped
+
+networks:
+  agent-net:
+    driver: bridge
