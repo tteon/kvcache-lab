@@ -73,7 +73,7 @@ Matrix mode commands:
 
 ```bash
 # 1) Collect matrix traces (all datasets x all baselines)
-uv run python -m src.trace_collector.run_matrix --dataset all --baseline all
+uv run python -m src.trace_collector.run_matrix --dataset all --baseline all --with-breakdown
 
 # 2) Analyze matrix traces
 uv run python -m src.trace_collector.analyze_matrix --dataset all --baseline all
@@ -98,6 +98,7 @@ Interpretation guide:
 src/trace_collector/
   common.py            # env resolution, test corpus, TraceLogger
   datasets.py          # dataset loaders for matrix experiments
+  neo4j_metrics.py     # workload breakdown logger + Neo4j query instrumentation
   run_all.py           # collector orchestrator
   run_matrix.py        # dataset x baseline trace orchestrator
   mem0_collector.py    # mem0 trace collection
@@ -111,6 +112,7 @@ src/trace_collector/
 
 data/traces/
   */*.jsonl            # raw traces
+  */*_breakdown.jsonl  # workload breakdown events (prompt, cypher, snapshots)
   *_result/*.jsonl     # substring match logs
   *_result/*.png       # per-system hit-rate plots
   comparison_chart.png # combined chart
@@ -211,7 +213,7 @@ uv run python -m src.trace_collector.analyze --system graphiti
 For dataset x baseline matrix:
 
 ```bash
-uv run python -m src.trace_collector.run_matrix --dataset all --baseline all
+uv run python -m src.trace_collector.run_matrix --dataset all --baseline all --with-breakdown
 uv run python -m src.trace_collector.analyze_matrix --dataset all --baseline all
 uv run python -m src.trace_collector.matrix_report -o docs/matrix_breakdown.md
 ```
