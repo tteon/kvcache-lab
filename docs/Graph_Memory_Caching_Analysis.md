@@ -4,13 +4,20 @@
 
 Graph memory agents that dynamically inject retrieved context into LLM prompts destroy traditional prefix caching. Graphiti's temporal knowledge graph architecture produces a **36.4% gap** between prefix and substring caching, while mem0's fixed-prompt design maintains high prefix reuse. Conversational agents without graph memory (tau2-bench baseline) show only **0.8-9.2%** gaps.
 
-| System | Type | Prefix Hit Rate | Substring Hit Rate | Gap |
-|--------|------|----------------:|-------------------:|----:|
-| **mem0** | Graph Memory (fixed prompts) | 87.6% | 88.5% | 0.9% |
-| **Graphiti** | Graph Memory (dynamic context) | 50.1% | 86.5% | **36.4%** |
-| tau2-bench airline | Baseline (conversational) | 86.5% | 89.7% | 3.2% |
-| tau2-bench retail | Baseline (conversational) | 85.6% | 94.8% | 9.2% |
-| tau2-bench telecom | Baseline (conversational) | 98.8% | 99.6% | 0.8% |
+### Key Metrics at a Glance
+
+| System | LLM Calls | Input Tokens | Duration | Prefix | Substring | Gap |
+|--------|----------:|-------------:|---------:|-------:|----------:|----:|
+| **mem0** | 201 (#1-#201) | ~104K | — | 87.6% | 88.5% | +0.9% |
+| **Graphiti** | 451 (#1-#451) | ~428K | 12.5 min | 50.1% | 86.5% | **+36.4%** |
+| tau2 airline | 51 (#1-#51) | ~126K | 1.3 min | 86.5% | 89.7% | +3.2% |
+| tau2 retail | 76 (#1-#76) | ~275K | 2.7 min | 85.6% | 94.8% | +9.2% |
+| tau2 telecom | 516 (#1-#516) | ~6.1M | 12.7 min | 98.8% | 99.6% | +0.8% |
+| **Total** | **1,295** | **~7.1M** | **~29 min** | | | |
+
+- **Largest gap**: Graphiti at **+36.4%** — substring caching recovers 36 percentage points that prefix caching cannot capture
+- **Highest volume**: tau2-bench telecom consumes ~6.1M input tokens across 516 calls, requiring bounded pool sizes (8 GB) to avoid OOM during analysis
+- **Most prefix-friendly**: tau2-bench telecom at 98.8% — append-only conversation history with a dominant system prompt
 
 ![Comparison Chart](data/traces/comparison_chart.png)
 
