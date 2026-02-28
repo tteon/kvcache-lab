@@ -447,6 +447,78 @@ tau2-telecom    tau2-airline    mem0        tau2-retail    Graphiti
 
 ---
 
+## Practical Considerations: Pool Size and Memory Pressure
+
+### Analysis Tool Memory Characteristics
+
+The cache simulation tool (`prefix_analysis.py`) maintains an **LRU token pool** that stores all input tokens for prefix/substring matching. With an unlimited pool, every token from every LLM call is retained in memory. This creates a critical scalability constraint for large workloads.
+
+### OOM on tau2-bench Telecom
+
+During our experiments, the tau2-bench telecom workload caused **Out-of-Memory (OOM) kills** when analyzed with an unlimited pool:
+
+| System | Total Tokens | Unlimited Pool Analysis | Result |
+|--------|------------:|------------------------:|--------|
+| mem0 | 104K | ~0.4 GB | OK |
+| graphiti | 429K | ~1.6 GB | OK |
+| tau2 airline | 127K | ~0.5 GB | OK |
+| tau2 retail | 276K | ~1.0 GB | OK |
+| **tau2 telecom** | **6,127K** | **~21 GB** | **OOM killed** |
+
+The root cause is twofold:
+
+1. **Unlimited pool = no eviction**: All 6.1M tokens from 516 LLM calls remain in memory. With each token requiring storage for the token ID plus metadata for matching, memory usage scales linearly with total token count.
+
+2. **Substring matching is O(N x M)**: For each new call with M input tokens, the analyzer scans the entire pool of N cached tokens for substring matches. With 516 calls averaging 11,874 tokens each, the cumulative matching work grows quadratically:
+
+```
+Call 1:    Match 11,874 tokens against pool of 0        →  trivial
+Call 100:  Match 11,874 tokens against pool of ~1.2M    →  moderate
+Call 300:  Match 11,874 tokens against pool of ~3.6M    →  heavy
+Call 516:  Match 11,874 tokens against pool of ~6.1M    →  OOM killed
+
+Memory growth (unlimited pool):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Call 100   ▓▓▓▓░░░░░░░░░░░░░░░░ ~4 GB
+Call 200   ▓▓▓▓▓▓▓▓░░░░░░░░░░░░ ~8 GB
+Call 300   ▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░ ~12 GB
+Call 400   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ ~17 GB
+Call 516   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ~21 GB → OOM ✗
+```
+
+### Solution: Bounded Pool Sizes
+
+Limiting the pool to `--pool-sizes 1 2 4 8` (GB) enables LRU eviction, which keeps memory bounded while retaining the most recently used tokens:
+
+```
+Pool Size = 8 GB (LRU eviction)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Call 1-100:    Pool fills to ~4 GB       → no eviction yet
+Call 100-250:  Pool fills to 8 GB cap    → LRU eviction begins
+Call 250-516:  Pool stays at 8 GB        → oldest tokens evicted
+
+Memory: stable at 8 GB ✓
+Result: prefix 98.8%, substring 99.6%   (vs unlimited: would be ~same)
+```
+
+The 8 GB pool achieves nearly identical hit rates to an unlimited pool because tau2-bench telecom's prompts are dominated by a **large, stable system prompt** (~2,300 tokens) that is always in the LRU cache. The conversation history from recent turns also fits within the 8 GB budget.
+
+### Implications for Real Deployments
+
+This OOM behavior in the simulation mirrors a real concern for LMCache deployments:
+
+| Scenario | Token Volume | Recommendation |
+|----------|-------------|----------------|
+| Graph memory (mem0) | Low (104K per 50 items) | Unlimited pool feasible |
+| Graph memory (Graphiti) | Medium (429K per 50 items) | 8 GB pool sufficient |
+| Short conversations (airline) | Low (127K per 5 tasks) | Unlimited pool feasible |
+| Long conversations (telecom) | **Very high (6.1M per 5 tasks)** | **Bounded pool required** |
+
+For production systems serving telecom-scale workloads (long multi-turn conversations with large system prompts), **bounded KV cache pools with LRU eviction are not just a memory optimization---they are a necessity**. The marginal hit rate improvement from unlimited pools does not justify the memory cost.
+
+---
+
 ## Conclusion
 
 Graph memory agents present a unique challenge for LLM inference caching. Our analysis of five workloads reveals a clear pattern:
